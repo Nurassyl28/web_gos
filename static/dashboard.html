@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>LMS Lite — Панель</title>
+</head>
+<body>
+  <h1>Панель LMS Lite</h1>
+  <div id="content"></div>
+  <script>
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      window.location.href = '/static/index.html';
+    }
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const content = document.getElementById('content');
+
+    async function loadData() {
+      const userResp = await fetch('/users/me', { headers });
+      if (!userResp.ok) {
+        content.textContent = 'Ошибка получения профиля';
+        return;
+      }
+      const user = await userResp.json();
+      if (user.role === 'student') {
+        renderStudent();
+      } else {
+        renderAdmin();
+      }
+    }
+
+    async function renderStudent() {
+      const courseResp = await fetch('/courses', { headers });
+      const data = await courseResp.json();
+      const list = data.items
+        .map(
+          (c) => `<li>${c.title} — <button data-id="${c.id}">Записаться</button>`
+        )
+        .join('');
+      content.innerHTML = `<h2>Доступные курсы</h2><ul>${list}</ul>`;
+      document.querySelectorAll('button[data-id]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const courseId = button.dataset.id;
+          await fetch(`/courses/${courseId}/enroll`, {
+            method: 'POST',
+            headers,
+          });
+          button.textContent = 'Запрошено';
+        });
+      });
+    }
+
+    async function renderAdmin() {
+      content.innerHTML = `
+        <h2>Создать курс</h2>
+        <form id="course-form">
+          <input name="title" placeholder="Название" required minlength="3" /><br />
+          <textarea name="description" placeholder="Описание"></textarea><br />
+          <button type="submit">Создать</button>
+        </form>
+        <h2>Курсы</h2>
+        <ul id="course-list"></ul>
+      `;
+      document.getElementById('course-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const payload = {
+          title: form.title.value,
+          description: form.description.value,
+        };
+        await fetch('/courses', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+        await refreshCourses();
+      });
+      await refreshCourses();
+    }
+
+    async function refreshCourses() {
+      const list = document.getElementById('course-list');
+      const response = await fetch('/courses', { headers });
+      const data = await response.json();
+      list.innerHTML = data.items
+        .map(
+          (course) => `
+            <li>
+              ${course.title} — опубликован: ${course.is_published}
+              <button data-id="${course.id}" data-action="publish" data-published="${course.is_published}">Toggle publish</button>
+              <button data-id="${course.id}" data-action="delete">Delete</button>
+            </li>`
+        )
+        .join('');
+      list.querySelectorAll('button[data-action="publish"]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const id = button.dataset.id;
+          await fetch(`/courses/${id}`, {
+            method: 'PUT',
+            headers,
+        body: JSON.stringify({ is_published: !JSON.parse(button.dataset.published) }),
+          });
+          await refreshCourses();
+        });
+      });
+      list.querySelectorAll('button[data-action="delete"]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const id = button.dataset.id;
+          await fetch(`/courses/${id}`, {
+            method: 'DELETE',
+            headers,
+          });
+          await refreshCourses();
+        });
+      });
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>LMS Lite — Вход</title>
+</head>
+<body>
+  <h1>Вход в LMS Lite</h1>
+  <form id="login-form">
+    <label>
+      Email:<br />
+      <input type="email" name="email" required />
+    </label>
+    <br />
+    <label>
+      Пароль:<br />
+      <input type="password" name="password" required minlength="8" />
+    </label>
+    <br />
+    <button type="submit">Войти</button>
+  </form>
+  <p id="message"></p>
+  <script>
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.get('email'),
+          password: formData.get('password'),
+        }),
+      });
+      const messageEl = document.getElementById('message');
+      if (!response.ok) {
+        messageEl.textContent = 'Неверные учетные данные';
+        return;
+      }
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
+      window.location.href = '/static/dashboard.html';
+    });
+  </script>
+</body>
+</html>

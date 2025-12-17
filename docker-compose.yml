@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lms_db
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONPATH: /code
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/lms_db
+      SECRET_KEY: super-secret-key
+      ENVIRONMENT: production
+    depends_on:
+      - db
+
+volumes:
+  db_data:
