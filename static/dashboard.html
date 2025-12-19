@@ -1,121 +1,1193 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8" />
-  <title>LMS Lite — Панель</title>
-</head>
-<body>
-  <h1>Панель LMS Lite</h1>
-  <div id="content"></div>
-  <script>
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      window.location.href = '/static/index.html';
-    }
-    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const content = document.getElementById('content');
-
-    async function loadData() {
-      const userResp = await fetch('/users/me', { headers });
-      if (!userResp.ok) {
-        content.textContent = 'Ошибка получения профиля';
-        return;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LMS Lite — Панель</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: 'Inter', system-ui, sans-serif;
+        background-color: #03030f;
       }
-      const user = await userResp.json();
-      if (user.role === 'student') {
-        renderStudent();
-      } else {
-        renderAdmin();
-      }
-    }
 
-    async function renderStudent() {
-      const courseResp = await fetch('/courses', { headers });
-      const data = await courseResp.json();
-      const list = data.items
-        .map(
-          (c) => `<li>${c.title} — <button data-id="${c.id}">Записаться</button>`
-        )
-        .join('');
-      content.innerHTML = `<h2>Доступные курсы</h2><ul>${list}</ul>`;
-      document.querySelectorAll('button[data-id]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const courseId = button.dataset.id;
-          await fetch(`/courses/${courseId}/enroll`, {
-            method: 'POST',
-            headers,
-          });
-          button.textContent = 'Запрошено';
-        });
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, rgba(99, 102, 241, 0.35), transparent 45%),
+          radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.25), transparent 35%),
+          #03030f;
+        color: #f8fafc;
+        display: flex;
+        justify-content: center;
+        padding: 2.5rem 1rem;
+      }
+
+      .page {
+        width: 100%;
+        max-width: 1100px;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .top-bar h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        letter-spacing: 0.03em;
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: 0.85rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: #94a3b8;
+      }
+
+      .status-banner {
+        padding: 0.6rem 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(15, 23, 42, 0.8);
+        font-size: 0.95rem;
+        min-height: 1.6rem;
+      }
+
+      .status-banner[data-variant='error'] {
+        border-color: #fca5a5;
+        color: #fecaca;
+      }
+
+      .status-banner[data-variant='success'] {
+        border-color: #34d399;
+        color: #bbf7d0;
+      }
+
+      .status-banner[data-variant='info'] {
+        border-color: rgba(99, 102, 241, 0.6);
+        color: #c7d2fe;
+      }
+
+      .dashboard-grid {
+        display: grid;
+        gap: 1.25rem;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+
+      .panel {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 20px 60px rgba(2, 6, 23, 0.7), 0 0 30px rgba(99, 102, 241, 0.1);
+      }
+
+      .panel h2 {
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        font-size: 1.25rem;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .stat {
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 16px;
+        padding: 1rem;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+      }
+
+      .stat .label {
+        font-size: 0.8rem;
+        color: #cbd5f5;
+        margin: 0 0 0.35rem;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+      }
+
+      .stat .value {
+        font-size: 1.6rem;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      .panel p {
+        margin: 0;
+        color: #94a3b8;
+      }
+
+      .list-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .course-list,
+      .enroll-list,
+      .admin-course-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+      }
+
+      .course-row,
+      .admin-course-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 18px;
+        background: rgba(148, 163, 184, 0.05);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+      }
+
+      .course-row strong,
+      .admin-course-row strong {
+        font-size: 1rem;
+        display: block;
+      }
+
+      .course-meta {
+        margin: 0.1rem 0 0;
+        font-size: 0.9rem;
+        color: #94a3b8;
+        line-height: 1.3;
+      }
+
+      .assignment-panel__subtitle {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+        color: #cbd5f5;
+      }
+
+      .assignment-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+      }
+
+      .assignment-card {
+        padding: 1rem 1.2rem;
+        border-radius: 18px;
+        background: rgba(99, 102, 241, 0.08);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .assignment-card__content {
+        flex: 1;
+        min-width: 220px;
+      }
+
+      .assignment-card__title {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .assignment-card__info {
+        margin: 0.25rem 0 0;
+        font-size: 0.85rem;
+        color: #e0e7ff;
+      }
+
+      .assignment-card__desc {
+        margin: 0.35rem 0 0;
+        font-size: 0.9rem;
+        color: #cbd5f5;
+      }
+
+      .assignment-card__link {
+        margin-left: auto;
+      }
+
+      .assignment-card__link a {
+        padding: 0.5rem 1rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: #e0e7ff;
+        background: rgba(2, 6, 23, 0.7);
+        font-size: 0.85rem;
+        text-decoration: none;
+        transition: background 0.2s ease, border 0.2s ease;
+      }
+
+      .assignment-card__link a:hover {
+        border-color: #38bdf8;
+        background: rgba(56, 189, 248, 0.15);
+      }
+
+      .assignment-card__actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.8rem;
+      }
+
+      .assignment-card__form {
+        margin-top: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        width: 100%;
+      }
+
+      .assignment-card__form textarea,
+      .assignment-card__form input {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        border-radius: 12px;
+        padding: 10px 12px;
+        color: #f8fafc;
+        font-family: inherit;
+        font-size: 0.9rem;
+      }
+
+      .assignment-card__form textarea {
+        min-height: 90px;
+      }
+
+      .assignment-card__status {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #a5b4fc;
+      }
+
+      textarea,
+      input {
+        width: 100%;
+        margin-top: 0.4rem;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(15, 23, 42, 0.65);
+        color: #f8fafc;
+        font-size: 1rem;
+      }
+
+      textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      .pill-btn {
+        border: none;
+        border-radius: 12px;
+        padding: 0.7rem 1.4rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .pill-btn.primary {
+        background: linear-gradient(135deg, #38bdf8, #6366f1);
+        color: #030617;
+      }
+
+      .pill-btn.secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: #f8fafc;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+      }
+
+      .pill-btn.ghost {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #f8fafc;
+      }
+
+      .pill-btn:disabled {
+        opacity: 0.7;
+        cursor: progress;
+      }
+
+      .pill-btn:not(:disabled):hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(2, 6, 23, 0.35);
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 0.6rem;
+      }
+
+      form label {
+        font-size: 0.85rem;
+        color: #cbd5f5;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .submission-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .submission-row {
+        border-radius: 18px;
+        padding: 1rem 1.2rem;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .submission-row strong {
+        font-size: 1rem;
+      }
+
+      .submission-row span {
+        font-size: 0.85rem;
+        color: #94a3b8;
+      }
+
+      @media (max-width: 600px) {
+        .top-bar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .panel {
+          padding: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top-bar">
+        <div>
+          <p class="eyebrow">Панель управления</p>
+          <h1>LMS Lite</h1>
+        </div>
+        <div class="header-actions">
+          <button id="logout-btn" class="pill-btn ghost">Выйти</button>
+        </div>
+      </header>
+
+      <p id="status-banner" class="status-banner" data-variant="info"></p>
+
+      <div class="dashboard-grid">
+        <section class="panel" id="stats-panel">
+          <h2>Загрузка...</h2>
+          <p>Получаем данные для отображения.</p>
+        </section>
+
+        <section class="panel" id="list-panel">
+          <h2>Контент</h2>
+          <p>Подождите, идет загрузка.</p>
+        </section>
+      </div>
+
+      <section class="panel" id="action-panel">
+        <h2>Действия</h2>
+        <p>Загрузка контекста...</p>
+      </section>
+
+      <section class="panel" id="assignment-panel">
+        <h2>Задания</h2>
+        <p>Подгружаем список заданий...</p>
+      </section>
+
+      <section class="panel" id="submission-panel">
+        <h2>Ответы студентов</h2>
+        <p>Загружаем ответы...</p>
+      </section>
+    </div>
+
+    <script>
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        window.location.href = '/static/index.html';
+      }
+
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const statsPanel = document.getElementById('stats-panel');
+      const listPanel = document.getElementById('list-panel');
+      const actionPanel = document.getElementById('action-panel');
+      const assignmentPanel = document.getElementById('assignment-panel');
+      const submissionPanel = document.getElementById('submission-panel');
+      const statusBanner = document.getElementById('status-banner');
+      const logoutBtn = document.getElementById('logout-btn');
+      let isAdminMode = false;
+      let assignmentFormRef = null;
+      let assignmentCancelBtnRef = null;
+      let editingAssignmentId = null;
+
+      logoutBtn.addEventListener('click', () => {
+        localStorage.removeItem('access_token');
+        window.location.href = '/static/index.html';
       });
-    }
 
-    async function renderAdmin() {
-      content.innerHTML = `
-        <h2>Создать курс</h2>
-        <form id="course-form">
-          <input name="title" placeholder="Название" required minlength="3" /><br />
-          <textarea name="description" placeholder="Описание"></textarea><br />
-          <button type="submit">Создать</button>
-        </form>
-        <h2>Курсы</h2>
-        <ul id="course-list"></ul>
-      `;
-      document.getElementById('course-form').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const payload = {
-          title: form.title.value,
-          description: form.description.value,
-        };
-        await fetch('/courses', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(payload),
+      function setStatus(text, variant = 'info') {
+        statusBanner.textContent = text;
+        statusBanner.dataset.variant = variant;
+        statusBanner.hidden = !text;
+      }
+
+      function formatDate(value) {
+        if (!value) {
+          return '';
+        }
+        const date = new Date(value);
+        return date.toLocaleString('ru-RU', { hour12: false });
+      }
+
+      function formatDateLocal(value) {
+        if (!value) {
+          return '';
+        }
+        const date = new Date(value);
+        const tzOffset = date.getTimezoneOffset() * 60000;
+        return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+      }
+
+      function getDueDateMin() {
+        const now = new Date();
+        now.setSeconds(0, 0);
+        const tzOffset = now.getTimezoneOffset() * 60000;
+        return new Date(now.getTime() - tzOffset).toISOString().slice(0, 16);
+      }
+
+      function resetAssignmentForm() {
+        if (!assignmentFormRef) return;
+        editingAssignmentId = null;
+        assignmentFormRef.assignment_id.value = '';
+        assignmentFormRef.reset();
+        if (assignmentCancelBtnRef) {
+          assignmentCancelBtnRef.hidden = true;
+        }
+        const submitBtn = assignmentFormRef.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.textContent = 'Сохранить задание';
+        }
+      }
+
+      function startAssignmentEdit(assignment) {
+        if (!assignmentFormRef) return;
+        editingAssignmentId = assignment.id;
+        assignmentFormRef.assignment_id.value = assignment.id;
+        assignmentFormRef.course_id.value = assignment.course_id;
+        assignmentFormRef.title.value = assignment.title;
+        assignmentFormRef.description.value = assignment.description || '';
+        assignmentFormRef.link.value = assignment.link || '';
+        assignmentFormRef.due_date.value = formatDateLocal(assignment.due_date);
+        if (assignmentCancelBtnRef) {
+          assignmentCancelBtnRef.hidden = false;
+        }
+        const submitBtn = assignmentFormRef.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.textContent = 'Обновить задание';
+        }
+        assignmentFormRef.scrollIntoView({ behavior: 'smooth' });
+      }
+
+      function attachAssignmentAdminActions() {
+        if (!isAdminMode) {
+          return;
+        }
+        assignmentPanel.querySelectorAll('[data-action]').forEach((button) => {
+          const action = button.dataset.action;
+          const assignmentId = button.dataset.id;
+          if (action === 'edit') {
+            button.addEventListener('click', () => {
+              startAssignmentEdit({
+                id: Number(assignmentId),
+                course_id: Number(button.dataset.courseId),
+                title: button.dataset.title,
+                description: button.dataset.description,
+                link: button.dataset.link,
+                due_date: button.dataset.due,
+              });
+            });
+          } else if (action === 'delete') {
+            button.addEventListener('click', async () => {
+              if (!confirm('Удалить задание?')) {
+                return;
+              }
+              try {
+                const response = await fetch(`/assignments/${assignmentId}`, {
+                  method: 'DELETE',
+                  headers,
+                });
+                if (!response.ok) {
+                  throw new Error('Не удалось удалить');
+                }
+                setStatus('Задание удалено', 'success');
+                await updateAssignmentPanel();
+                await updateSubmissionPanel();
+              } catch (error) {
+                console.error(error);
+                setStatus('Ошибка удаления', 'error');
+              }
+            });
+          }
         });
+      }
+
+      function buildAssignmentCard(assignment) {
+        const dueLabel = assignment.due_date
+          ? `Дедлайн ${formatDate(assignment.due_date)}`
+          : 'Дедлайн не назначен';
+        const linkMarkup = assignment.link
+          ? `<div class="assignment-card__link"><a href="${assignment.link}" target="_blank" rel="noreferrer">Открыть материал</a></div>`
+          : '';
+        const submitForm = !isAdminMode
+          ? `
+            <form class="assignment-card__form" data-assignment-id="${assignment.id}">
+              <label>
+                Комментарий
+                <textarea name="message" required minlength="5" placeholder="Опишите, что вы сделали"></textarea>
+              </label>
+              <label>
+                Ссылка (если есть)
+                <input type="url" name="link" placeholder="https://..." />
+              </label>
+              <button type="submit" class="pill-btn primary">Отправить решение</button>
+              <p class="assignment-card__status" data-assignment-status="${assignment.id}"></p>
+            </form>
+          `
+          : '';
+        const adminActions = isAdminMode
+          ? `
+            <div class="assignment-card__actions">
+              <button
+                class="pill-btn secondary"
+                type="button"
+                data-action="edit"
+                data-id="${assignment.id}"
+                data-course-id="${assignment.course_id}"
+                data-title="${assignment.title}"
+                data-description="${(assignment.description || '').replace(/"/g, '&quot;')}"
+                data-link="${assignment.link || ''}"
+                data-due="${assignment.due_date || ''}"
+              >
+                Редактировать
+              </button>
+              <button class="pill-btn ghost" type="button" data-action="delete" data-id="${assignment.id}">Удалить</button>
+            </div>
+          `
+          : '';
+        return `
+          <li class="assignment-card">
+            <div class="assignment-card__content">
+              <p class="assignment-card__title">${assignment.title}</p>
+              <p class="assignment-card__info">Курс #${assignment.course_id} · ${dueLabel}</p>
+              <p class="assignment-card__desc">${assignment.description || 'Описание отсутствует'}</p>
+            </div>
+            ${linkMarkup}
+            ${submitForm}
+            ${adminActions}
+          </li>
+        `;
+      }
+
+      function buildSubmissionRow(record) {
+        const dueLabel = record.submitted_at
+          ? formatDate(record.submitted_at)
+          : 'Дата неизвестна';
+        return `
+          <li class="submission-row">
+            <strong>${record.assignment_title}</strong>
+            <span>Курс #${record.course_id} — ${record.course_title || '—'}</span>
+            <span>Студент: ${record.student_email} · ${dueLabel}</span>
+            <p>${record.message}</p>
+            ${record.link ? `<a class="assignment-card__link" href="${record.link}" target="_blank" rel="noreferrer">Материал</a>` : ''}
+          </li>
+        `;
+      }
+
+      async function updateAssignmentPanel() {
+        assignmentPanel.innerHTML = `
+          <h2>Задания</h2>
+          <p class="assignment-panel__subtitle">Подгружаем список заданий...</p>
+        `;
+        try {
+          const response = await fetch('/assignments', { headers });
+          if (!response.ok) {
+            throw new Error('Не удалось загрузить задания');
+          }
+          const assignments = await response.json();
+          if (!assignments.length) {
+            assignmentPanel.innerHTML = `
+              <h2>Задания</h2>
+              <p class="assignment-panel__subtitle">${isAdminMode ? 'Задачи будут отображены после создания.' : 'Пока нет активных заданий.'}</p>
+            `;
+            return;
+          }
+          assignmentPanel.innerHTML = `
+            <h2>Задания</h2>
+            <p class="assignment-panel__subtitle">${
+              isAdminMode ? 'Список заданий для всех курсов.' : 'Ваши текущие задания с дедлайнами и ссылками.'
+            }</p>
+            <ul class="assignment-list">
+              ${assignments.map(buildAssignmentCard).join('')}
+            </ul>
+          `;
+          await updateSubmissionPanel();
+          attachAssignmentSubmissionHandlers();
+          attachAssignmentAdminActions();
+        } catch (error) {
+          console.error(error);
+          assignmentPanel.innerHTML = `
+            <h2>Задания</h2>
+            <p class="assignment-panel__subtitle">Не удалось загрузить задания.</p>
+          `;
+        }
+      }
+
+      async function updateSubmissionPanel() {
+        if (!isAdminMode) {
+          submissionPanel.innerHTML = `
+            <h2>Ответы студентов</h2>
+            <p>Только админы могут просматривать ответы.</p>
+          `;
+          return;
+        }
+        submissionPanel.innerHTML = `
+          <h2>Ответы студентов</h2>
+          <p class="assignment-panel__subtitle">Загружаем ответы...</p>
+        `;
+        try {
+          const response = await fetch('/assignments/admin-overview', { headers });
+          if (!response.ok) {
+            throw new Error('Не удалось загрузить ответы');
+          }
+          const records = await response.json();
+          if (!records.length) {
+            submissionPanel.innerHTML = `
+              <h2>Ответы студентов</h2>
+              <p class="assignment-panel__subtitle">Пока нет отправленных решений.</p>
+            `;
+            return;
+          }
+          submissionPanel.innerHTML = `
+            <h2>Ответы студентов</h2>
+            <ul class="submission-list">
+              ${records.map(buildSubmissionRow).join('')}
+            </ul>
+          `;
+        } catch (error) {
+          console.error(error);
+          submissionPanel.innerHTML = `
+            <h2>Ответы студентов</h2>
+            <p class="assignment-panel__subtitle">Не удалось загрузить ответы.</p>
+          `;
+        }
+      }
+
+      function attachAssignmentSubmissionHandlers() {
+        assignmentPanel.querySelectorAll('.assignment-card__form').forEach((form) => {
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const statusEl = form.querySelector('.assignment-card__status');
+            const assignmentId = form.dataset.assignmentId;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Отправка...';
+            statusEl.textContent = '';
+            const payload = {
+              message: form.message.value,
+              link: form.link.value || undefined,
+            };
+            try {
+              const response = await fetch(`/assignments/${assignmentId}/submit`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+              });
+              if (!response.ok) {
+                throw new Error('Ошибка отправки');
+              }
+              statusEl.textContent = 'Ответ отправлен.';
+              statusEl.style.color = '#4ade80';
+              form.reset();
+              await updateAssignmentPanel();
+            } catch (error) {
+              console.error(error);
+              statusEl.textContent = 'Не удалось отправить. Попробуйте снова.';
+              statusEl.style.color = '#fda4af';
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Отправить решение';
+            }
+          });
+        });
+      }
+
+      async function loadData() {
+        setStatus('Загружаем профиль...');
+        try {
+          const userResp = await fetch('/users/me', { headers });
+          if (!userResp.ok) {
+            throw new Error('Ошибка загрузки профиля');
+          }
+          const user = await userResp.json();
+
+          if (user.role === 'student') {
+            isAdminMode = false;
+            await loadStudentView();
+          } else {
+            isAdminMode = true;
+            await renderAdmin();
+          }
+        } catch (error) {
+          console.error(error);
+          setStatus('Не удалось получить данные. Обновите страницу.', 'error');
+          statsPanel.innerHTML = '<p>Ошибка при загрузке профиля. Перезапустите страницу.</p>';
+          listPanel.innerHTML = '<p>Нет данных.</p>';
+          actionPanel.innerHTML = '<p>Обновите страницу.</p>';
+          assignmentPanel.innerHTML = '<p>Нет доступных заданий.</p>';
+        }
+      }
+
+      async function loadStudentView() {
+        setStatus('Получаем курсы...');
+        try {
+          const [courseResp, enrollResp] = await Promise.all([
+            fetch('/courses', { headers }),
+            fetch('/me/enrollments', { headers }),
+          ]);
+
+          if (!courseResp.ok || !enrollResp.ok) {
+            throw new Error('Ошибка загрузки данных курсов');
+          }
+
+          const coursesData = await courseResp.json();
+          const enrollments = await enrollResp.json();
+
+          renderStudent(coursesData, enrollments);
+          await updateAssignmentPanel();
+          setStatus('Все готово', 'success');
+        } catch (error) {
+          console.error(error);
+          setStatus('Не удалось загрузить курсы.', 'error');
+        }
+      }
+
+      function renderStudent(coursesData, enrollments) {
+        const enrolledIds = new Set(enrollments.map((e) => e.course_id));
+        const publishedCount = coursesData.items.filter((course) => course.is_published).length;
+
+        statsPanel.innerHTML = `
+          <h2>Курсы</h2>
+          <div class="stats-grid">
+            <article class="stat">
+              <p class="label">Всего</p>
+              <p class="value">${coursesData.items.length}</p>
+            </article>
+            <article class="stat">
+              <p class="label">Опубликовано</p>
+              <p class="value">${publishedCount}</p>
+            </article>
+            <article class="stat">
+              <p class="label">Записан</p>
+              <p class="value">${enrollments.length}</p>
+            </article>
+          </div>
+        `;
+
+        const availableList = coursesData.items
+          .map((course) => {
+            const enrolled = enrolledIds.has(course.id);
+            return `
+              <li class="course-row">
+                <div>
+                  <strong>${course.title}</strong>
+                  <p class="course-meta">
+                    ${course.description || 'Описание отсутствует'}<br />
+                    Статус: ${course.is_published ? 'Опубликован' : 'Черновик'} · Студентов: ${course.students_count}
+                  </p>
+                </div>
+                <button class="pill-btn secondary" data-id="${course.id}" ${enrolled ? 'disabled' : ''}>
+                  ${enrolled ? 'Уже записан' : 'Записаться'}
+                </button>
+              </li>
+            `;
+          })
+          .join('');
+
+        const enrolledList = enrollments
+          .map((enrollment) => {
+            const course = coursesData.items.find((item) => item.id === enrollment.course_id);
+            const title = course ? course.title : `Курс #${enrollment.course_id}`;
+            const enrolledAt = new Date(enrollment.enrolled_at).toLocaleString();
+            return `<li class="course-row">
+                      <div>
+                        <strong>${title}</strong>
+                        <p class="course-meta">Записан: ${enrolledAt}</p>
+                      </div>
+                    </li>`;
+          })
+          .join('');
+
+        listPanel.innerHTML = `
+          <div class="list-card">
+            <h3>Доступные курсы</h3>
+            <ul class="course-list">
+              ${availableList || '<li>Пока курсов нет</li>'}
+            </ul>
+          </div>
+          <div class="list-card">
+            <h3>Мои записи</h3>
+            <ul class="enroll-list">
+              ${enrolledList || '<li>Записей пока нет</li>'}
+            </ul>
+          </div>
+        `;
+
+        actionPanel.innerHTML = `
+          <div class="list-card">
+            <h3>Поддержка</h3>
+            <p>Если вы уже оплатили курс — обратитесь к администратору, чтобы подтвердить запись.</p>
+          </div>
+        `;
+
+        listPanel.querySelectorAll('button[data-id]').forEach((button) => {
+          if (button.disabled) {
+            return;
+          }
+          button.addEventListener('click', async () => {
+            const courseId = button.dataset.id;
+            button.disabled = true;
+            button.textContent = 'Отправка...';
+            setStatus('Отправляем запрос на запись...');
+
+            try {
+              const resp = await fetch(`/courses/${courseId}/enroll`, {
+                method: 'POST',
+                headers,
+              });
+
+              if (!resp.ok) {
+                throw new Error('Ошибка запроса');
+              }
+
+              setStatus('Запрос отправлен', 'success');
+              await loadStudentView();
+            } catch (error) {
+              console.error(error);
+              setStatus('Не удалось записаться.', 'error');
+              button.textContent = 'Ошибка';
+            }
+          });
+        });
+      }
+
+      async function renderAdmin() {
+        actionPanel.innerHTML = `
+          <div class="list-card">
+            <h3>Создать курс</h3>
+            <form id="course-form">
+              <label>
+                Название
+                <input name="title" placeholder="Название курса" required minlength="3" />
+              </label>
+              <label>
+                Описание
+                <textarea name="description" placeholder="Краткое описание"></textarea>
+              </label>
+              <button class="pill-btn primary" type="submit">Создать курс</button>
+            </form>
+          </div>
+          <div class="list-card">
+            <h3>Создать задание</h3>
+            <form id="assignment-form">
+              <label>
+                Курс
+                <select name="course_id" required>
+                  <option value="">Сначала создайте курс</option>
+                </select>
+              </label>
+              <label>
+                Заголовок
+                <input name="title" placeholder="Например, Домашнее задание 1" required minlength="3" />
+              </label>
+              <label>
+                Описание
+                <textarea name="description" placeholder="Описание задач"></textarea>
+              </label>
+              <label>
+                Ссылка
+                <input type="url" name="link" placeholder="https://..." />
+              </label>
+              <input type="hidden" name="assignment_id" value="" />
+              <label>
+                Дедлайн
+                <input type="datetime-local" name="due_date" required />
+              </label>
+              <div class="header-actions" style="margin-top: 0.5rem;">
+                <button class="pill-btn primary" type="submit">Сохранить задание</button>
+                <button class="pill-btn ghost" type="button" id="assignment-reset-btn" hidden>Отменить</button>
+              </div>
+            </form>
+          </div>
+        `;
+
+        const form = document.getElementById('course-form');
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Сохраняем...';
+          setStatus('Создаем курс...');
+
+          const payload = {
+            title: form.title.value,
+            description: form.description.value,
+          };
+
+          try {
+            const response = await fetch('/courses', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              throw new Error('Ошибка создания курса');
+            }
+
+            form.reset();
+            await refreshCourses();
+          } catch (error) {
+            console.error(error);
+            setStatus('Не удалось создать курс.', 'error');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Создать курс';
+          }
+        });
+
+        assignmentFormRef = document.getElementById('assignment-form');
+        assignmentCancelBtnRef = document.getElementById('assignment-reset-btn');
+        resetAssignmentForm();
+        if (assignmentCancelBtnRef) {
+          assignmentCancelBtnRef.addEventListener('click', resetAssignmentForm);
+        }
+        assignmentFormRef.due_date.min = getDueDateMin();
+        assignmentFormRef.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const submitBtn = assignmentFormRef.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Сохраняем...';
+          setStatus(editingAssignmentId ? 'Обновляем задание...' : 'Создаем задание...');
+
+          const courseId = assignmentFormRef.course_id.value;
+          if (!courseId) {
+            setStatus('Выберите курс для задания.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Сохранить задание';
+            return;
+          }
+          if (!assignmentFormRef.due_date.value) {
+            setStatus('Укажите дедлайн.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Сохранить задание';
+            return;
+          }
+
+          const payload = {
+            title: assignmentFormRef.title.value,
+            description: assignmentFormRef.description.value,
+            link: assignmentFormRef.link.value || undefined,
+            due_date: new Date(assignmentFormRef.due_date.value).toISOString(),
+          };
+
+          const url = editingAssignmentId
+            ? `/assignments/${editingAssignmentId}`
+            : `/assignments/courses/${courseId}`;
+          const method = editingAssignmentId ? 'PUT' : 'POST';
+
+          try {
+            const response = await fetch(url, {
+              method,
+              headers,
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              throw new Error('Ошибка создания задания');
+            }
+
+            resetAssignmentForm();
+            await refreshCourses();
+            await updateAssignmentPanel();
+            await updateSubmissionPanel();
+            setStatus(editingAssignmentId ? 'Задание обновлено' : 'Задание добавлено', 'success');
+          } catch (error) {
+            console.error(error);
+            setStatus('Не удалось создать задание.', 'error');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Сохранить задание';
+          }
+        });
+
         await refreshCourses();
-      });
-      await refreshCourses();
-    }
+        await updateAssignmentPanel();
+        await updateSubmissionPanel();
+      }
 
-    async function refreshCourses() {
-      const list = document.getElementById('course-list');
-      const response = await fetch('/courses', { headers });
-      const data = await response.json();
-      list.innerHTML = data.items
-        .map(
-          (course) => `
-            <li>
-              ${course.title} — опубликован: ${course.is_published}
-              <button data-id="${course.id}" data-action="publish" data-published="${course.is_published}">Toggle publish</button>
-              <button data-id="${course.id}" data-action="delete">Delete</button>
-            </li>`
-        )
-        .join('');
-      list.querySelectorAll('button[data-action="publish"]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const id = button.dataset.id;
-          await fetch(`/courses/${id}`, {
-            method: 'PUT',
-            headers,
-        body: JSON.stringify({ is_published: !JSON.parse(button.dataset.published) }),
-          });
-          await refreshCourses();
-        });
-      });
-      list.querySelectorAll('button[data-action="delete"]').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const id = button.dataset.id;
-          await fetch(`/courses/${id}`, {
-            method: 'DELETE',
-            headers,
-          });
-          await refreshCourses();
-        });
-      });
-    }
+      function populateAssignmentCourseSelect(courses) {
+        const select = document.querySelector('#assignment-form select[name="course_id"]');
+        if (!select) {
+          return;
+        }
 
-    loadData();
-  </script>
-</body>
+        if (!courses.length) {
+          select.innerHTML = '<option value="">Сначала создайте курс</option>';
+          return;
+        }
+
+        select.innerHTML = `
+          <option value="" disabled selected>Выберите курс</option>
+          ${courses.map((course) => `<option value="${course.id}">${course.title}</option>`).join('')}
+        `;
+      }
+
+      async function refreshCourses() {
+        setStatus('Обновляем курсы...');
+        try {
+          const response = await fetch('/courses', { headers });
+          if (!response.ok) {
+            throw new Error('Ошибка загрузки курсов');
+          }
+
+          const data = await response.json();
+          const publishedCount = data.items.filter((course) => course.is_published).length;
+
+          statsPanel.innerHTML = `
+            <h2>Курсы</h2>
+            <div class="stats-grid">
+              <article class="stat">
+                <p class="label">Всего</p>
+                <p class="value">${data.items.length}</p>
+              </article>
+              <article class="stat">
+                <p class="label">Опубликовано</p>
+                <p class="value">${publishedCount}</p>
+              </article>
+              <article class="stat">
+                <p class="label">Черновиков</p>
+                <p class="value">${data.items.length - publishedCount}</p>
+              </article>
+            </div>
+          `;
+
+          listPanel.innerHTML = `
+            <div class="list-card">
+              <h3>Список курсов</h3>
+              <ul class="admin-course-list">
+                ${data.items
+                  .map(
+                    (course) => `
+                      <li class="admin-course-row">
+                        <div>
+                          <strong>${course.title}</strong>
+                          <p class="course-meta">${course.description || 'Описание отсутствует'}</p>
+                          <p class="course-meta">
+                            Статус: ${course.is_published ? 'Опубликован' : 'Черновик'} · ID ${course.id}
+                          </p>
+                        </div>
+                        <div class="header-actions">
+                          <button class="pill-btn secondary" data-action="publish" data-id="${course.id}" data-published="${course.is_published}">
+                            ${course.is_published ? 'Снять публикацию' : 'Опубликовать'}
+                          </button>
+                          <button class="pill-btn ghost" data-action="delete" data-id="${course.id}">
+                            Удалить
+                          </button>
+                        </div>
+                      </li>`
+                  )
+                  .join('')}
+              </ul>
+            </div>
+          `;
+
+          if (isAdminMode) {
+            populateAssignmentCourseSelect(data.items);
+          }
+
+          listPanel.querySelectorAll('button[data-action]').forEach((button) => {
+            const { action, id } = button.dataset;
+            button.addEventListener('click', async () => {
+              button.disabled = true;
+              setStatus(action === 'delete' ? 'Удаление курса...' : 'Обновление статуса...');
+
+              try {
+                if (action === 'publish') {
+                  const isPublished = JSON.parse(button.dataset.published);
+                  await fetch(`/courses/${id}`, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify({ is_published: !isPublished }),
+                  });
+                } else if (action === 'delete') {
+                  await fetch(`/courses/${id}`, {
+                    method: 'DELETE',
+                    headers,
+                  });
+                }
+
+                await refreshCourses();
+              } catch (error) {
+                console.error(error);
+                setStatus('Не удалось выполнить действие.', 'error');
+                button.disabled = false;
+              }
+            });
+          });
+
+          setStatus('Курсы обновлены', 'success');
+          return data;
+        } catch (error) {
+          console.error(error);
+          setStatus('Не удалось загрузить курсы.', 'error');
+          return null;
+        }
+      }
+
+      loadData();
+    </script>
+  </body>
 </html>

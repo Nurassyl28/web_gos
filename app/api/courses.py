@@ -6,7 +6,13 @@ from app.api.deps import get_current_admin, get_current_user_optional
 from app.db.session import get_db
 from app.models.enrollment import Enrollment
 from app.models.user import UserRole
-from app.schemas.course import CourseCreate, CourseResponse, CourseUpdate
+from app.schemas.course import (
+    COURSE_LEVELS,
+    CourseCreate,
+    CourseLevelInfo,
+    CourseResponse,
+    CourseUpdate,
+)
 from app.schemas.pagination import PaginatedCourses
 from app.services.course_service import (
     create_course,
@@ -50,6 +56,8 @@ def read_courses(
                 created_by=course.created_by,
                 created_at=course.created_at,
                 students_count=count,
+                level=course.level,
+                duration_minutes=course.duration_minutes,
             )
             for course, count in items
         ],
@@ -74,6 +82,8 @@ def create_new_course(
         created_by=course.created_by,
         created_at=course.created_at,
         students_count=0,
+        level=course.level,
+        duration_minutes=course.duration_minutes,
     )
 
 
@@ -102,6 +112,8 @@ def edit_course(
         created_by=course.created_by,
         created_at=course.created_at,
         students_count=students_count,
+        level=course.level,
+        duration_minutes=course.duration_minutes,
     )
 
 
@@ -142,4 +154,11 @@ def read_course(
         created_by=course.created_by,
         created_at=course.created_at,
         students_count=students_count,
+        level=course.level,
+        duration_minutes=course.duration_minutes,
     )
+
+
+@router.get("/levels", response_model=list[CourseLevelInfo])
+def read_course_levels():
+    return COURSE_LEVELS

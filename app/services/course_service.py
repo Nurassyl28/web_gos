@@ -65,6 +65,8 @@ def create_course(db: Session, course_create: CourseCreate, creator_id: int) -> 
     course = Course(
         title=course_create.title,
         description=course_create.description,
+        level=course_create.level,
+        duration_minutes=course_create.duration_minutes,
         created_by=creator_id,
     )
     db.add(course)
@@ -87,6 +89,10 @@ def update_course(db: Session, course: Course, payload: CourseUpdate) -> Course:
         course.description = payload.description
     if payload.is_published is not None:
         course.is_published = payload.is_published
+    if payload.level is not None:
+        course.level = payload.level
+    if payload.duration_minutes is not None:
+        course.duration_minutes = payload.duration_minutes
     db.add(course)
     db.commit()
     db.refresh(course)

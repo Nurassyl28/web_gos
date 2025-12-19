@@ -26,3 +26,4 @@ class User(Base):
 
     courses_created = relationship("Course", back_populates="creator", cascade="all, delete-orphan")
     enrollments = relationship("Enrollment", back_populates="user", cascade="all, delete-orphan")
+    submissions = relationship("AssignmentSubmission", back_populates="user", cascade="all, delete-orphan")
